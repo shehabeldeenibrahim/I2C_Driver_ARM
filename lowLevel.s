@@ -1,6 +1,6 @@
 Initializations:
 Set clock freq to 12Mhz:
-    write ((SCLK/ 12 MHz) -1) into I2C_PSC at 0x4802A0B0 bits[7:0]
+    write ((48MHz/ 12 MHz) -1) into I2C_PSC at 0x4802A0B0 bits[7:0]
 Set SCL to 400 kbps:
     write (1/400,000)/(1/12x10^6) - 7 SCLL at 0x4802A0B4
     write (1/400,000)/1/12x10^6 - 5 SCLH at 0x4802A0B8

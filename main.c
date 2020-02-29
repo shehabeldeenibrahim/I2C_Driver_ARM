@@ -21,14 +21,15 @@
 
 /*Numbers Definess*/
 #define I2C_CON_EN  (1 << 15)
-#define DATA    0x5
-#define tLow 0x17
-#define tHigh 0x19
+#define DATA    0xA
+#define SCLL 0x8
+#define SCLH 0xA
 
 /*Global Variables*/
 int BB;
 int XRDY;
 int numberBytes = 1;
+int i = 20;
 volatile unsigned int USR_STACK[100];
 volatile unsigned int INT_STACK[100];
 
@@ -59,10 +60,14 @@ int main() {
     initializeI2C();
     writeSA();
     writeNumberBytes();
-    pollBB();
-    genStart();
-    pollXRDY();
-    writeToBuff();
+    //while (1){
+        pollBB();
+        genStart();
+        pollXRDY();
+        writeToBuff();
+        i--;
+    //}
+    
     //genStop();
 
 
@@ -99,8 +104,8 @@ void initializeI2C(){
 }
 
 void setClkSpeed(){
-    HWREG(I2C1_BASE + I2C1_SCLL) = tLow;
-    HWREG(I2C1_BASE + I2C1_SCLH) = tHigh;
+    HWREG(I2C1_BASE + I2C1_SCLL) = SCLL;
+    HWREG(I2C1_BASE + I2C1_SCLH) = SCLH;
 }
 
 void setOA(){
