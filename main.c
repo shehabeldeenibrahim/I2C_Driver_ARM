@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdbool.h>
-
 #define HWREG(x) (* ((volatile unsigned int *)(x)))
 
 /*Addresses Defines*/
@@ -13,23 +10,23 @@
 #define I2C1_SA     0xAC
 #define I2C1_CNT    0x98
 #define I2C1_DATA   0x9C
-#define I2C1_CM_PER 0x44E00048
 #define I2C1_IRQSTATUS_RAW 0x24
+#define I2C1_CM_PER 0x44E00048
+
 
 #define conf_spi0_cs0 0x44E1095C
 #define conf_spi0_d1  0x44E10958
 
 /*Numbers Definess*/
 #define I2C_CON_EN  (1 << 15)
+#define I2C_START     0x1
+#define I2C_STOP      0x2
 #define DATA    0x5
 #define SCLL 0x8
 #define SCLH 0xA
 
 /*Global Variables*/
-int BB;
-int XRDY;
-int numberBytes = 1;
-int i = 20;
+
 volatile unsigned int USR_STACK[100];
 volatile unsigned int INT_STACK[100];
 
@@ -43,13 +40,13 @@ void setClkSpeed();
 void setOA();
 void enableI2C();
 void writeSA();
-void writeNumberBytes();
-bool pollBB();
+void writeNumberBytes(int numberBytes);
+void pollBB();
 void genStart();
 void genStop();
-bool pollXRDY();
+void pollXRDY();
 void writeToBuff();
-
+void waitLoop(int numberOfLoops);
 
 /*Main*/
 int main() {
@@ -68,7 +65,7 @@ int main() {
     while (1){
         pollBB();
 
-        writeNumberBytes();
+        writeNumberBytes(1);
 
         genStart();
 
@@ -76,12 +73,8 @@ int main() {
 
         writeToBuff();
 
-        //i--;
    }
-    int count = 500;
-    while(count > 0){
-        count--;
-    }
+    waitLoop(500);
 
 
 
@@ -104,11 +97,11 @@ void configurePins(){
 }
 
 void enableI2CClk(){
-    HWREG(I2C1_CM_PER) = 0x2;
+    HWREG(I2C1_CM_PER) |= 0x2;
 }
 
 void setClkFreq(){
-    HWREG(I2C1_BASE + I2C1_PSC) = 3;
+    HWREG(I2C1_BASE + I2C1_PSC) |= 0x3;
 }
 
 void initializeI2C(){
@@ -118,8 +111,8 @@ void initializeI2C(){
 }
 
 void setClkSpeed(){
-    HWREG(I2C1_BASE + I2C1_SCLL) = SCLL;
-    HWREG(I2C1_BASE + I2C1_SCLH) = SCLH;
+    HWREG(I2C1_BASE + I2C1_SCLL) |= SCLL;
+    HWREG(I2C1_BASE + I2C1_SCLH) |= SCLH;
 }
 
 void setOA(){
@@ -127,45 +120,48 @@ void setOA(){
 }
 
 void enableI2C(){
-    HWREG(I2C1_BASE + I2C1_CON) = 0x00008600;
+    HWREG(I2C1_BASE + I2C1_CON) |= 0x00008600;
 }
 
 void writeSA(){
-    HWREG(I2C1_BASE + I2C1_SA) = 0x60;
+    HWREG(I2C1_BASE + I2C1_SA) |= 0x60;
 }
 
-void writeNumberBytes(){
-    HWREG(I2C1_BASE + I2C1_CNT) = numberBytes;
+void writeNumberBytes(int numberBytes){
+    HWREG(I2C1_BASE + I2C1_CNT) |= numberBytes;
 }
 
-bool pollBB(){
-    do{
+void pollBB(){
+    
+    while (HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW) & (1<<12) == 1){
+        //do nothing
+    }
 
-        BB = HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW);
-        BB = (BB & (1<<12));
-
-    } while (BB == 1);
-    return true;
 }
 
 void genStart(){
-    HWREG(I2C1_BASE + I2C1_CON) =0x00008603;
+    HWREG(I2C1_BASE + I2C1_CON) |= I2C_START;
 }
 
 void genStop(){
-    HWREG(I2C1_BASE + I2C1_CON) =0x00008602;
+    HWREG(I2C1_BASE + I2C1_CON) |= I2C_STOP;
 }
 
-bool pollXRDY(){
-    do{
+void pollXRDY(){
 
-        XRDY = HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW);
-        XRDY = (XRDY & (1<<4));
+    while ( HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW) & (1<<4) == 0 ){
+        //do nothing
+    }
 
-    } while (XRDY == 0);
-    return true;
 }
 
 void writeToBuff(){
     HWREG(I2C1_BASE + I2C1_DATA) = DATA;
+}
+
+void waitLoop(int numberOfLoops){
+    
+    while(numberOfLoops > 0){
+        numberOfLoops--;
+    }
 }
