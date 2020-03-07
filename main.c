@@ -21,7 +21,7 @@
 
 /*Numbers Definess*/
 #define I2C_CON_EN  (1 << 15)
-#define DATA    0xA
+#define DATA    0x5
 #define SCLL 0x8
 #define SCLH 0xA
 
@@ -53,22 +53,36 @@ void writeToBuff();
 
 /*Main*/
 int main() {
-    initializeStack();
+    //initializeStack();
+
     configurePins();
+
     enableI2CClk();
+
     setClkFreq();
+
     initializeI2C();
+
     writeSA();
-    writeNumberBytes();
-    //while (1){
+
+    while (1){
         pollBB();
+
+        writeNumberBytes();
+
         genStart();
+
         pollXRDY();
+
         writeToBuff();
-        i--;
-    //}
-    
-    //genStop();
+
+        //i--;
+   }
+    int count = 500;
+    while(count > 0){
+        count--;
+    }
+
 
 
 return 0;
@@ -94,7 +108,7 @@ void enableI2CClk(){
 }
 
 void setClkFreq(){
-    HWREG(I2C1_BASE + I2C1_PSC) = (48 / 12) -1;
+    HWREG(I2C1_BASE + I2C1_PSC) = 3;
 }
 
 void initializeI2C(){
@@ -113,7 +127,7 @@ void setOA(){
 }
 
 void enableI2C(){
-    HWREG(I2C1_BASE + I2C1_CON) = I2C_CON_EN;
+    HWREG(I2C1_BASE + I2C1_CON) = 0x00008600;
 }
 
 void writeSA(){
