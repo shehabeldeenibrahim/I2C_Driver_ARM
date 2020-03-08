@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <stdbool.h>
+
 #define HWREG(x) (* ((volatile unsigned int *)(x)))
 
 /*Addresses Defines*/
@@ -10,27 +13,29 @@
 #define I2C1_SA     0xAC
 #define I2C1_CNT    0x98
 #define I2C1_DATA   0x9C
-#define I2C1_IRQSTATUS_RAW 0x24
 #define I2C1_CM_PER 0x44E00048
-
+#define I2C1_IRQSTATUS_RAW 0x24
 
 #define conf_spi0_cs0 0x44E1095C
 #define conf_spi0_d1  0x44E10958
 
 /*Numbers Definess*/
 #define I2C_CON_EN  (1 << 15)
-#define I2C_START     0x1
-#define I2C_STOP      0x2
-#define DATA    0x5
+//#define DATA    0x5
 #define SCLL 0x8
 #define SCLH 0xA
 
 /*Global Variables*/
-
+int BB;
+int XRDY;
+int numberBytes = 0x1;
+int i = 20;
+int temp;
 volatile unsigned int USR_STACK[100];
 volatile unsigned int INT_STACK[100];
 
 /*Functions Prototypes*/
+void data(int dCount, int DATA[]);
 void initializeStack();
 void configurePins();
 void enableI2CClk();
@@ -40,54 +45,57 @@ void setClkSpeed();
 void setOA();
 void enableI2C();
 void writeSA();
-void writeNumberBytes(int numberBytes);
-void pollBB();
+void writeNumberBytes();
+bool pollBB();
 void genStart();
 void genStop();
-void pollXRDY();
+bool pollXRDY();
 void writeToBuff();
-void waitLoop(int numberOfLoops);
+
 
 /*Main*/
 int main() {
-    //initializeStack();
+
+    int DATA[7] = {1,2,3,4,5,6,7};
+    int dCount = 7;
 
     configurePins();
 
     enableI2CClk();
 
+    HWREG(I2C1_CM_PER) = 0x2;
+
     setClkFreq();
 
     initializeI2C();
 
+    writeNumberBytes();
+
     writeSA();
 
-    while (1){
-        pollBB();
-
-        writeNumberBytes(1);
-
-        genStart();
-
-        pollXRDY();
-
-        writeToBuff();
-
-   }
-    waitLoop(500);
-
-
+    data(dCount, DATA);
 
 return 0;
 }
 
 /*Functions Definitions*/
 
+void data(int dCount, int DATA[]){
+    for(int i = 0; i < dCount; i++){
+        pollBB();
+        writeNumberBytes();
+        genStart();
+        pollXRDY();
+        //write to buffer
+        HWREG(I2C1_BASE + I2C1_DATA) = DATA[i];
+    }
+}
+
 void initializeStack(){
     //SET UP STACKS
-	//init USR stack
-	asm("LDR R13, =USR_STACK");
-	asm("ADD R13, R13, #0x100");
+    //init USR stack
+    asm("LDR R13, =USR_STACK");
+    asm("ADD R13, R13, #0x100");
 
 }
 
@@ -97,11 +105,11 @@ void configurePins(){
 }
 
 void enableI2CClk(){
-    HWREG(I2C1_CM_PER) |= 0x2;
+    HWREG(I2C1_CM_PER) = 0x2;
 }
 
 void setClkFreq(){
-    HWREG(I2C1_BASE + I2C1_PSC) |= 0x3;
+    HWREG(I2C1_BASE + I2C1_PSC) = 3;
 }
 
 void initializeI2C(){
@@ -111,8 +119,8 @@ void initializeI2C(){
 }
 
 void setClkSpeed(){
-    HWREG(I2C1_BASE + I2C1_SCLL) |= SCLL;
-    HWREG(I2C1_BASE + I2C1_SCLH) |= SCLH;
+    HWREG(I2C1_BASE + I2C1_SCLL) = SCLL;
+    HWREG(I2C1_BASE + I2C1_SCLH) = SCLH;
 }
 
 void setOA(){
@@ -120,48 +128,45 @@ void setOA(){
 }
 
 void enableI2C(){
-    HWREG(I2C1_BASE + I2C1_CON) |= 0x00008600;
+    HWREG(I2C1_BASE + I2C1_CON) = 0x00008600;
 }
 
 void writeSA(){
-    HWREG(I2C1_BASE + I2C1_SA) |= 0x60;
+    HWREG(I2C1_BASE + I2C1_SA) = 0x60;
 }
 
-void writeNumberBytes(int numberBytes){
-    HWREG(I2C1_BASE + I2C1_CNT) |= numberBytes;
+void writeNumberBytes(){
+    HWREG(I2C1_BASE + I2C1_CNT) = numberBytes;
 }
 
-void pollBB(){
-    
-    while (HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW) & (1<<12) == 1){
-        //do nothing
-    }
+bool pollBB(){
+    do{
 
+        BB = HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW);
+        BB = ((BB >> 12) & 1);
+
+    } while (BB == 1);
+    return true;
 }
 
 void genStart(){
-    HWREG(I2C1_BASE + I2C1_CON) |= I2C_START;
+    HWREG(I2C1_BASE + I2C1_CON) =0x00008603;
 }
 
 void genStop(){
-    HWREG(I2C1_BASE + I2C1_CON) |= I2C_STOP;
+    HWREG(I2C1_BASE + I2C1_CON) =0x00008602;
 }
 
-void pollXRDY(){
+bool pollXRDY(){
+    do{
 
-    while ( HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW) & (1<<4) == 0 ){
-        //do nothing
-    }
+        XRDY = HWREG(I2C1_BASE + I2C1_IRQSTATUS_RAW);
+        XRDY = ((XRDY >> 4) & 1);
 
+    } while (XRDY == 0);
+    return true;
 }
 
 void writeToBuff(){
-    HWREG(I2C1_BASE + I2C1_DATA) = DATA;
-}
-
-void waitLoop(int numberOfLoops){
-    
-    while(numberOfLoops > 0){
-        numberOfLoops--;
-    }
+    //HWREG(I2C1_BASE + I2C1_DATA) = DATA;
 }
