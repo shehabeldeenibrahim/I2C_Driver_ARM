@@ -16,26 +16,45 @@
 #define I2C1_CM_PER 0x44E00048
 #define I2C1_IRQSTATUS_RAW 0x24
 
+
 #define conf_spi0_cs0 0x44E1095C
 #define conf_spi0_d1  0x44E10958
 
 /*Numbers Definess*/
 #define I2C_CON_EN  (1 << 15)
-//#define DATA    0x5
 #define SCLL 0x8
 #define SCLH 0xA
 
 /*Global Variables*/
 int BB;
 int XRDY;
-int numberBytes = 0x1;
+int numberBytes = 0x2;
 int i = 20;
 int temp;
 volatile unsigned int USR_STACK[100];
 volatile unsigned int INT_STACK[100];
 
+/*PWMs*/
+int PWM2_ON_H  = 0x0F;
+int PWM3_ON_H  = 0x13;
+int PWM4_ON_H  = 0x17;
+int PWM5_ON_H  = 0x1B;
+int PWM6_ON_H  = 0x1F;
+int PWM7_ON_H  = 0x23;
+int PWM_H_VALUE = 0x10;
+int PWM_L_VALUE = 0x00;
+
+
+/*Struct of data and address*/
+struct message
+{
+    int address;
+    int data;
+};
+
 /*Functions Prototypes*/
-void data(int dCount, int DATA[]);
+void sendCommands(int dCount, struct message COMMANDS[]);
+void sendPWM(int pwm_dCount, struct message PWM[]);
 void initializeStack();
 void configurePins();
 void enableI2CClk();
@@ -44,20 +63,59 @@ void setClkFreq();
 void setClkSpeed();
 void setOA();
 void enableI2C();
-void writeSA();
+void writeSA(int address);
 void writeNumberBytes();
 bool pollBB();
 void genStart();
 void genStop();
 bool pollXRDY();
 void writeToBuff();
+void waitLoop(int loops);
 
 
 /*Main*/
 int main() {
 
-    int DATA[7] = {1,2,3,4,5,6,7};
-    int dCount = 7;
+    int dCount = 5;
+    struct message COMMANDS[5] = {
+        {0x0, 0x11},    //sleep, allcall
+        {0xFE, 5},      //prescale
+        {0x0, 0x81},    //restart, allcall, interior clk
+        {0x01, 0x4},    //totem, invert
+        {0xFD, 0x0}     //ALL_LED_OFF_H
+    };
+
+    int pwm_dCount = 24;
+    struct message PWM[24] = {
+            {PWM4_ON_H, PWM_H_VALUE},    //PWM4
+            {PWM3_ON_H, PWM_L_VALUE},    //PWM3
+            {PWM5_ON_H, PWM_H_VALUE},    //PWM5
+            {PWM6_ON_H, PWM_L_VALUE},    //PWM6
+            {PWM2_ON_H, PWM_H_VALUE},    //PWM2
+            {PWM7_ON_H, PWM_H_VALUE},    //PWM7
+
+            {PWM4_ON_H, PWM_H_VALUE},    //PWM4
+            {PWM3_ON_H, PWM_L_VALUE},    //PWM3
+            {PWM5_ON_H, PWM_L_VALUE},    //PWM5
+            {PWM6_ON_H, PWM_H_VALUE},    //PWM6
+            {PWM2_ON_H, PWM_H_VALUE},    //PWM2
+            {PWM7_ON_H, PWM_H_VALUE},    //PWM7
+
+            {PWM4_ON_H, PWM_L_VALUE},    //PWM4
+            {PWM3_ON_H, PWM_H_VALUE},    //PWM3
+            {PWM5_ON_H, PWM_L_VALUE},    //PWM5
+            {PWM6_ON_H, PWM_H_VALUE},    //PWM6
+            {PWM2_ON_H, PWM_H_VALUE},    //PWM2
+            {PWM7_ON_H, PWM_H_VALUE},    //PWM7
+
+            {PWM4_ON_H, PWM_L_VALUE},    //PWM4
+            {PWM3_ON_H, PWM_H_VALUE},    //PWM3
+            {PWM5_ON_H, PWM_H_VALUE},    //PWM5
+            {PWM6_ON_H, PWM_L_VALUE},    //PWM6
+            {PWM2_ON_H, PWM_H_VALUE},    //PWM2
+            {PWM7_ON_H, PWM_H_VALUE},    //PWM7
+        };
+
 
     configurePins();
 
@@ -70,24 +128,49 @@ int main() {
     initializeI2C();
 
     writeNumberBytes();
+    writeSA(0x60);
 
-    writeSA();
+    sendCommands(dCount, COMMANDS);
 
-    data(dCount, DATA);
+    sendPWM(pwm_dCount, PWM);
+    pollBB(); //debug
 
 return 0;
 }
 
 /*Functions Definitions*/
 
-void data(int dCount, int DATA[]){
+void sendCommands(int dCount, struct message COMMANDS[]){
     for(int i = 0; i < dCount; i++){
+
         pollBB();
         writeNumberBytes();
         genStart();
         pollXRDY();
         //write to buffer
-        HWREG(I2C1_BASE + I2C1_DATA) = DATA[i];
+        HWREG(I2C1_BASE + I2C1_DATA) = COMMANDS[i].address;
+        HWREG(I2C1_BASE + I2C1_DATA) = COMMANDS[i].data;
+        for(int k = 0; k < 5000; k++){}
+
+    }
+}
+void sendPWM(int pwm_dCount, struct message PWM[]){
+    for(int j = 0; j < 200; j++){
+    for(int i = 0; i < pwm_dCount; i++){
+            pollBB();
+            writeNumberBytes();
+            genStart();
+            pollXRDY();
+            if(i % 5 == 0){
+                for(int k = 0; k < 400000; k++){}
+            }
+            //write to buffer
+            HWREG(I2C1_BASE + I2C1_DATA) = PWM[i].address;
+            HWREG(I2C1_BASE + I2C1_DATA) = PWM[i].data;
+
+
+        }
+
     }
 }
 
@@ -131,8 +214,8 @@ void enableI2C(){
     HWREG(I2C1_BASE + I2C1_CON) = 0x00008600;
 }
 
-void writeSA(){
-    HWREG(I2C1_BASE + I2C1_SA) = 0x60;
+void writeSA(int address){
+    HWREG(I2C1_BASE + I2C1_SA) = address;
 }
 
 void writeNumberBytes(){
@@ -169,4 +252,9 @@ bool pollXRDY(){
 
 void writeToBuff(){
     //HWREG(I2C1_BASE + I2C1_DATA) = DATA;
+}
+void waitLoop(int loops){
+    for (int i = 0; i < loops; i++){
+        //wait
+    }
 }
